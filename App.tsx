@@ -26,6 +26,13 @@ const App: React.FC = () => {
   };
 
   const generateNewImage = async () => {
+    const apiKey = process.env.API_KEY;
+    
+    if (!apiKey) {
+      setError('Vercel Settings에서 API_KEY 환경 변수를 설정해주세요.');
+      return;
+    }
+
     if (!originalImage || !prompt.trim()) {
       setError('이미지를 업로드하고 설명을 입력해주세요.');
       return;
@@ -35,8 +42,7 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      // 가이드라인에 따라 매 호출 시 새 인스턴스 생성 및 process.env.API_KEY 사용
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       
       const systemInstruction = mode === GenerationMode.CHARACTER 
         ? `Maintain the character/subject identity from the source image. Create new actions or expressions as described. Creativity level: ${Math.round(creativity * 100)}%. User request: ${prompt}`
@@ -73,17 +79,12 @@ const App: React.FC = () => {
       }
 
       if (!foundImage) {
-        // 텍스트 응답이 있을 경우 에러 메시지로 표시
-        const textResponse = response.text || "이미지를 생성하지 못했습니다. 설명을 더 자세히 입력해보세요.";
-        setError(textResponse);
+        const textContent = response.text || "이미지를 생성하지 못했습니다. 정책 위반(Safety) 여부나 프롬프트를 확인해주세요.";
+        setError(`결과: ${textContent}`);
       }
     } catch (err: any) {
       console.error('Generation failed:', err);
-      if (err.message?.includes('API_KEY')) {
-        setError('API Key가 유효하지 않거나 설정되지 않았습니다.');
-      } else {
-        setError(err.message || '이미지 생성 중 오류가 발생했습니다.');
-      }
+      setError(err.message || 'API 호출 중 오류가 발생했습니다.');
     } finally {
       setIsGenerating(false);
     }
@@ -96,7 +97,7 @@ const App: React.FC = () => {
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           
-          {/* Left Side: Controls (1, 2, 3번 영역) */}
+          {/* Left Side: Controls */}
           <div className="w-full lg:w-1/2 flex flex-col gap-6">
             <section className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
               <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -140,7 +141,7 @@ const App: React.FC = () => {
             </section>
           </div>
 
-          {/* Right Side: Display (4, 5번 영역 나란히 배치) */}
+          {/* Right Side: Display */}
           <div className="w-full lg:w-1/2 flex flex-col gap-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
               <div className="flex flex-col h-full">
@@ -171,9 +172,9 @@ const App: React.FC = () => {
                   <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-400 shadow-sm">
                     <i className="fas fa-wand-sparkles text-2xl"></i>
                   </div>
-                  <h3 className="text-indigo-900 font-bold text-lg">시작할 준비가 되셨나요?</h3>
+                  <h3 className="text-indigo-900 font-bold text-lg">준비가 되었습니다</h3>
                   <p className="text-indigo-600/70 max-w-xs mx-auto mt-2">
-                    왼쪽 영역에서 이미지를 업로드하고 원하는 변형 방식을 설명해보세요.
+                    이미지를 업로드하고 AI에게 새로운 창작을 요청해보세요.
                   </p>
                 </div>
               </div>
