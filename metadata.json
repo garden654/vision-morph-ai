@@ -1,0 +1,5 @@
+{
+  "name": "Vision Transformer & Generator",
+  "description": "An advanced AI tool to transform original images using Gemini. Upload an image, choose a mode (Maintain Character or Style), and describe the changes to generate a new variation while preserving core elements.",
+  "requestFramePermissions": []
+}
