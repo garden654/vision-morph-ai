@@ -35,12 +35,14 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      // API Key는 process.env.API_KEY에서 직접 가져와야 함
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      // 가이드라인에 따라 매 호출 시 새 인스턴스 생성 및 process.env.API_KEY 사용
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const systemInstruction = mode === GenerationMode.CHARACTER 
-        ? `원본 이미지의 피사체(인물/캐릭터)를 유지하면서 새로운 동작이나 표정을 생성하세요. 창의성 수준: ${Math.round(creativity * 100)}%. 요청사항: ${prompt}`
-        : `원본 이미지의 화풍(Art Style)을 완벽하게 유지하면서 완전히 새로운 장면을 생성하세요. 요청사항: ${prompt}`;
+        ? `Maintain the character/subject identity from the source image. Create new actions or expressions as described. Creativity level: ${Math.round(creativity * 100)}%. User request: ${prompt}`
+        : `Maintain the exact art style from the source image. Create an entirely new scene as described. User request: ${prompt}`;
+
+      const base64Data = originalImage.includes(',') ? originalImage.split(',')[1] : originalImage;
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
@@ -48,7 +50,7 @@ const App: React.FC = () => {
           parts: [
             {
               inlineData: {
-                data: originalImage.split(',')[1] || originalImage,
+                data: base64Data,
                 mimeType: originalMimeType,
               },
             },
@@ -60,9 +62,8 @@ const App: React.FC = () => {
       });
 
       let foundImage = false;
-      const candidates = (response as any).candidates;
-      if (candidates && candidates[0]?.content?.parts) {
-        for (const part of candidates[0].content.parts) {
+      if (response.candidates && response.candidates[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
           if (part.inlineData) {
             setGeneratedImage(`data:image/png;base64,${part.inlineData.data}`);
             foundImage = true;
@@ -72,12 +73,17 @@ const App: React.FC = () => {
       }
 
       if (!foundImage) {
-        const textResponse = response.text || "이미지를 생성하지 못했습니다. 다시 시도해주세요.";
-        setError(`AI 응답: ${textResponse}`);
+        // 텍스트 응답이 있을 경우 에러 메시지로 표시
+        const textResponse = response.text || "이미지를 생성하지 못했습니다. 설명을 더 자세히 입력해보세요.";
+        setError(textResponse);
       }
     } catch (err: any) {
       console.error('Generation failed:', err);
-      setError(err.message || '이미지 생성에 실패했습니다. 다시 시도해주세요.');
+      if (err.message?.includes('API_KEY')) {
+        setError('API Key가 유효하지 않거나 설정되지 않았습니다.');
+      } else {
+        setError(err.message || '이미지 생성 중 오류가 발생했습니다.');
+      }
     } finally {
       setIsGenerating(false);
     }
