@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { GenerationMode } from './types';
 import Header from './components/Header';
@@ -27,7 +27,7 @@ const App: React.FC = () => {
 
   const generateNewImage = async () => {
     if (!originalImage || !prompt.trim()) {
-      setError('Please upload an image and enter a description first.');
+      setError('이미지를 업로드하고 설명을 입력해주세요.');
       return;
     }
 
@@ -35,12 +35,12 @@ const App: React.FC = () => {
     setError(null);
 
     try {
+      // API Key는 process.env.API_KEY에서 직접 가져와야 함
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
       
-      // Constructing a detailed prompt based on mode
       const systemInstruction = mode === GenerationMode.CHARACTER 
-        ? `You are an expert image editor. The user wants to maintain the character/subject of the uploaded image but change their action or expression. Creativity level: ${creativity * 100}%. Instruction: ${prompt}`
-        : `You are an expert style transfer artist. The user wants to maintain the exact art style of the uploaded image but create a completely new scene. Instruction: ${prompt}`;
+        ? `원본 이미지의 피사체(인물/캐릭터)를 유지하면서 새로운 동작이나 표정을 생성하세요. 창의성 수준: ${Math.round(creativity * 100)}%. 요청사항: ${prompt}`
+        : `원본 이미지의 화풍(Art Style)을 완벽하게 유지하면서 완전히 새로운 장면을 생성하세요. 요청사항: ${prompt}`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
@@ -60,22 +60,24 @@ const App: React.FC = () => {
       });
 
       let foundImage = false;
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          setGeneratedImage(`data:image/png;base64,${part.inlineData.data}`);
-          foundImage = true;
-          break;
+      const candidates = (response as any).candidates;
+      if (candidates && candidates[0]?.content?.parts) {
+        for (const part of candidates[0].content.parts) {
+          if (part.inlineData) {
+            setGeneratedImage(`data:image/png;base64,${part.inlineData.data}`);
+            foundImage = true;
+            break;
+          }
         }
       }
 
       if (!foundImage) {
-        // If the model only returned text, it might be an error message or refusal
-        const textResponse = response.text || "Model didn't generate an image.";
-        setError(`AI Response: ${textResponse}`);
+        const textResponse = response.text || "이미지를 생성하지 못했습니다. 다시 시도해주세요.";
+        setError(`AI 응답: ${textResponse}`);
       }
     } catch (err: any) {
       console.error('Generation failed:', err);
-      setError(err.message || 'Failed to generate image. Please try again.');
+      setError(err.message || '이미지 생성에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setIsGenerating(false);
     }
@@ -85,15 +87,15 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header />
       
-      <main className="flex-grow container mx-auto px-4 py-8 lg:py-12">
+      <main className="flex-grow container mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           
-          {/* Left Side: Controls */}
+          {/* Left Side: Controls (1, 2, 3번 영역) */}
           <div className="w-full lg:w-1/2 flex flex-col gap-6">
             <section className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
               <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <span className="bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm">1</span>
-                Upload Source Image
+                Image Upload
               </h2>
               <ImageUploader onUpload={handleImageUpload} />
             </section>
@@ -101,7 +103,7 @@ const App: React.FC = () => {
             <section className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
               <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <span className="bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm">2</span>
-                Select Mode
+                Generation Mode
               </h2>
               <ModeSelector 
                 mode={mode} 
@@ -114,7 +116,7 @@ const App: React.FC = () => {
             <section className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
               <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <span className="bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm">3</span>
-                Describe Transformation
+                Describe New Image
               </h2>
               <PromptInput 
                 prompt={prompt} 
@@ -132,35 +134,51 @@ const App: React.FC = () => {
             </section>
           </div>
 
-          {/* Right Side: Results */}
-          <div className="w-full lg:w-1/2 flex flex-col sm:flex-row gap-6">
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <span className="bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm">4</span>
-                Original Image
-              </h2>
-              <ImageDisplay image={originalImage} label="Source" />
+          {/* Right Side: Display (4, 5번 영역 나란히 배치) */}
+          <div className="w-full lg:w-1/2 flex flex-col gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
+              <div className="flex flex-col h-full">
+                <h2 className="text-lg font-bold text-slate-700 mb-3 flex items-center gap-2">
+                  <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">4</span>
+                  Original Image
+                </h2>
+                <ImageDisplay image={originalImage} label="Original" />
+              </div>
+              
+              <div className="flex flex-col h-full">
+                <h2 className="text-lg font-bold text-slate-700 mb-3 flex items-center gap-2">
+                  <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">5</span>
+                  Generated Image
+                </h2>
+                <ImageDisplay 
+                  image={generatedImage} 
+                  label="Generated" 
+                  isLoading={isGenerating}
+                  isPlaceholder={!generatedImage}
+                />
+              </div>
             </div>
             
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <span className="bg-indigo-600 text-white w-7 h-7 rounded-full flex items-center justify-center text-sm">5</span>
-                Generated Image
-              </h2>
-              <ImageDisplay 
-                image={generatedImage} 
-                label="Result" 
-                isLoading={isGenerating}
-                isPlaceholder={!generatedImage}
-              />
-            </div>
+            {!originalImage && (
+              <div className="flex-grow flex items-center justify-center bg-indigo-50/50 border-2 border-dashed border-indigo-100 rounded-3xl p-12 text-center">
+                <div>
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-400 shadow-sm">
+                    <i className="fas fa-wand-sparkles text-2xl"></i>
+                  </div>
+                  <h3 className="text-indigo-900 font-bold text-lg">시작할 준비가 되셨나요?</h3>
+                  <p className="text-indigo-600/70 max-w-xs mx-auto mt-2">
+                    왼쪽 영역에서 이미지를 업로드하고 원하는 변형 방식을 설명해보세요.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           
         </div>
       </main>
 
-      <footer className="py-6 border-t border-slate-200 text-center text-slate-500 text-sm">
-        <p>© 2024 Vision Transformer AI. Powered by Gemini 2.5 Flash Image.</p>
+      <footer className="py-6 border-t border-slate-200 text-center text-slate-400 text-sm">
+        <p>© 2025 Vision Morph AI. Powered by Gemini Flash Image.</p>
       </footer>
     </div>
   );
