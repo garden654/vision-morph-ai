@@ -26,10 +26,11 @@ const App: React.FC = () => {
   };
 
   const generateNewImage = async () => {
+    // API 키 확인 (process.env.API_KEY는 빌드 시 Vercel에서 주입됨)
     const apiKey = process.env.API_KEY;
     
     if (!apiKey) {
-      setError('Vercel Settings에서 API_KEY 환경 변수를 설정해주세요.');
+      setError('API Key가 감지되지 않습니다. Vercel 환경 변수 설정을 확인해주세요.');
       return;
     }
 
@@ -42,12 +43,14 @@ const App: React.FC = () => {
     setError(null);
 
     try {
+      // 최신 SDK 규격: new GoogleGenAI({ apiKey })
       const ai = new GoogleGenAI({ apiKey });
       
       const systemInstruction = mode === GenerationMode.CHARACTER 
-        ? `Maintain the character/subject identity from the source image. Create new actions or expressions as described. Creativity level: ${Math.round(creativity * 100)}%. User request: ${prompt}`
-        : `Maintain the exact art style from the source image. Create an entirely new scene as described. User request: ${prompt}`;
+        ? `You are an image editor. Maintain the character/subject identity from the source image. Create new actions or expressions as described. Creativity level (0-1): ${creativity}. User request: ${prompt}`
+        : `You are an image editor. Maintain the exact art style from the source image. Create an entirely new scene using that style. User request: ${prompt}`;
 
+      // Base64 데이터에서 헤더 제거
       const base64Data = originalImage.includes(',') ? originalImage.split(',')[1] : originalImage;
 
       const response = await ai.models.generateContent({
@@ -68,6 +71,7 @@ const App: React.FC = () => {
       });
 
       let foundImage = false;
+      // 응답 구조에서 이미지 파트 추출
       if (response.candidates && response.candidates[0]?.content?.parts) {
         for (const part of response.candidates[0].content.parts) {
           if (part.inlineData) {
@@ -79,12 +83,20 @@ const App: React.FC = () => {
       }
 
       if (!foundImage) {
-        const textContent = response.text || "이미지를 생성하지 못했습니다. 정책 위반(Safety) 여부나 프롬프트를 확인해주세요.";
-        setError(`결과: ${textContent}`);
+        // 텍스트 응답이 있을 경우 에러 메시지로 활용
+        const textContent = response.text || "이미지를 생성하지 못했습니다. 프롬프트를 조정해보세요.";
+        setError(textContent);
       }
     } catch (err: any) {
       console.error('Generation failed:', err);
-      setError(err.message || 'API 호출 중 오류가 발생했습니다.');
+      // 구체적인 에러 핸들링
+      if (err.message?.includes('403') || err.message?.includes('API_KEY_INVALID')) {
+        setError('API Key가 유효하지 않습니다. Vercel의 API_KEY 설정을 다시 확인해주세요.');
+      } else if (err.message?.includes('429')) {
+        setError('요청이 너무 많습니다. 잠시 후 다시 시도해주세요.');
+      } else {
+        setError(err.message || '이미지 생성 중 오류가 발생했습니다.');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -172,9 +184,9 @@ const App: React.FC = () => {
                   <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-400 shadow-sm">
                     <i className="fas fa-wand-sparkles text-2xl"></i>
                   </div>
-                  <h3 className="text-indigo-900 font-bold text-lg">준비가 되었습니다</h3>
+                  <h3 className="text-indigo-900 font-bold text-lg">기다리고 있습니다</h3>
                   <p className="text-indigo-600/70 max-w-xs mx-auto mt-2">
-                    이미지를 업로드하고 AI에게 새로운 창작을 요청해보세요.
+                    이미지를 업로드하고 AI에게 마법같은 변화를 요청해보세요.
                   </p>
                 </div>
               </div>
